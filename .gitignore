@@ -1,0 +1,10 @@
+# .gitignore
+.env
+venv/
+__pycache__/
+*.pyc
+.DS_Store
+envs/
+*.conda
+.vscode/
+*.code-workspace

@@ -1,0 +1,34 @@
+// devices.json
+[
+  {
+    "id": "BJ-001",
+    "location": "北京机房A",
+    "type": "温度传感器",
+    "status": "normal",
+    "temperature": 23.5,
+    "last_heartbeat": "2025-06-17 10:30"
+  },
+  {
+    "id": "BJ-002",
+    "location": "北京机房A",
+    "type": "湿度传感器",
+    "status": "alarm",
+    "humidity": 85.0,
+    "last_heartbeat": "2025-06-17 10:25"
+  },
+  {
+    "id": "SH-001",
+    "location": "上海机房B",
+    "type": "温度传感器",
+    "status": "normal",
+    "temperature": 21.8,
+    "last_heartbeat": "2025-06-17 10:28"
+  },
+  {
+    "id": "SH-002",
+    "location": "上海机房B",
+    "type": "电源模块",
+    "status": "offline",
+    "last_heartbeat": "2025-06-16 23:15"
+  }
+]
