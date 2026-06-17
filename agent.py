@@ -1,14 +1,15 @@
 # agent.py
 from langchain_openai import ChatOpenAI
-from langchain.agents import AgentExecutor, create_tool_calling_agent
+from langchain.agents import create_agent
 from langchain.tools import tool
-from langchain.memory import ConversationBufferWindowMemory
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from tools import search_device, get_device_detail
 import os
+from dotenv import load_dotenv
+# 加载 .env 文件
+load_dotenv()
 
 # 用内存字典模拟会话存储（生产环境换 Redis）
-sessions: dict[str, ConversationBufferWindowMemory] = {}
+sessions: dict[str, list] = {}
 
 SYSTEM_PROMPT = """你是一个智能设备管理助手。你可以帮助用户查询和管理物联网设备。
 
@@ -46,19 +47,15 @@ def get_device_detail_tool(device_id: str) -> str:
     return "\n".join(lines)
 
 
-def get_or_create_memory(session_id: str) -> ConversationBufferWindowMemory:
+def get_or_create_memory(session_id: str) -> list:
     if session_id not in sessions:
-        sessions[session_id] = ConversationBufferWindowMemory(
-            memory_key="chat_history",
-            return_messages=True,
-            k=10  # 保留最近 10 轮对话
-        )
+        sessions[session_id] = []
     return sessions[session_id]
 
 
 async def run_agent(message: str, session_id: str = "default") -> str:
     llm = ChatOpenAI(
-        model="gpt-4o",  # 或 deepseek-chat 等兼容模型
+        model="deepseek-v4-flash",  # 或 deepseek-chat 等兼容模型
         temperature=0.1,
         api_key=os.getenv("OPENAI_API_KEY"),
         base_url=os.getenv("OPENAI_BASE_URL"),  # 可选，用于兼容 API
@@ -67,22 +64,28 @@ async def run_agent(message: str, session_id: str = "default") -> str:
     tools = [search_device_tool, get_device_detail_tool]
     memory = get_or_create_memory(session_id)
 
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", SYSTEM_PROMPT),
-        MessagesPlaceholder(variable_name="chat_history"),
-        ("human", "{input}"),
-        MessagesPlaceholder(variable_name="agent_scratchpad"),
-    ])
-
-    agent = create_tool_calling_agent(llm, tools, prompt)
-    executor = AgentExecutor(
-        agent=agent,
+    # 组装完整消息：系统提示 + 历史对话 + 当前用户输入
+    agent = create_agent(
+        model=llm,
         tools=tools,
-        memory=memory,
-        verbose=True,
-        handle_parsing_errors=True,
-        max_iterations=5,
+        system_prompt=None)
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}] + memory + [{"role": "user", "content": message}]
+    
+    # 异步调用，可设置最大迭代次数等配置
+    response = await agent.ainvoke(
+        {"messages": messages},
+        config={"max_iterations": 5}   # 防止无限循环
     )
+    # 提取最后一条助手消息（最终回复）
+    assistant_msg = response["messages"][-1]
+    reply = assistant_msg.content
 
-    result = await executor.ainvoke({"input": message})
-    return result["output"]
+    # 更新历史：记录用户消息和助手回复
+    memory.append({"role": "user", "content": message})
+    memory.append({"role": "assistant", "content": reply})
+
+    # 控制历史长度（可选，避免 session 无限膨胀）
+    if len(memory) > 20:
+        sessions[session_id] = memory[-20:]
+
+    return reply
