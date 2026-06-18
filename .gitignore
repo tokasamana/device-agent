@@ -6,4 +6,4 @@ __pycache__/
 .DS_Store
 envs/
 *.conda
-chat_cli.py
+instances/
